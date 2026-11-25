@@ -1,0 +1,8 @@
+# saída da compilação
+out/
+*.apk
+*.idsig
+# chave de assinatura: NUNCA publicar (quem tiver ela consegue assinar atualizações do app)
+assinatura/
+# ferramentas do Android (baixe à parte)
+ferramentas/

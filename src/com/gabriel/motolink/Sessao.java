@@ -1,0 +1,234 @@
+package com.gabriel.motolink;
+
+import android.content.Context;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
+
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+
+/**
+ * A conexão com o painel e o log moram aqui, fora da tela. Assim, se o Android fechar ou recriar a
+ * tela do app (o que às vezes acontece ao voltar para ele), a moto continua conectada e o log continua.
+ */
+final class Sessao implements Painel.Ouvinte {
+
+    static final String VERSAO = "1.0";
+
+    interface Tela {
+        void novaLinha(String linha);
+        void novoEstado(String texto, boolean ok);
+        void tudoDeNovo();
+    }
+
+    private static Sessao unica;
+
+    static synchronized Sessao de(Context c) {
+        if (unica == null) unica = new Sessao(c.getApplicationContext());
+        return unica;
+    }
+
+    final Painel painel;
+    final Rede rede;
+    final Bolha bolha;
+    final AndroidAuto aa;
+    private volatile boolean ativa;
+
+    /** O usuário mandou conectar e ainda não desconectou. */
+    boolean ativa() { return ativa; }
+
+    private final Context ctx;
+    private final Handler h = new Handler(Looper.getMainLooper());
+    private final StringBuilder logTudo = new StringBuilder();
+    private final List<String> logTela = new ArrayList<>();
+    private final SimpleDateFormat hora = new SimpleDateFormat("HH:mm:ss.SSS", Locale.ROOT);
+    private volatile Tela tela;
+    private String estadoTexto = "Desconectado";
+    private boolean estadoOk;
+    private int freqPedida;
+
+    private Sessao(Context app) {
+        ctx = app;
+        painel = new Painel(app, this);
+        rede = new Rede(app, this);
+        bolha = new Bolha(app, this);
+        aa = new AndroidAuto(app, rede.midia, new AndroidAuto.Avisos() {
+            @Override public void log(String s) { Sessao.this.log(s); }
+            @Override public void estado(String s, boolean ok) { Sessao.this.estado(s, ok); }
+        });
+        rede.aoComecarVideo = new Runnable() { @Override public void run() {
+            if (!aa.ligado()) aa.conectar();          // painel pronto: tenta pôr o Android Auto nele
+        }};
+        log("Moto Link v" + VERSAO + " · Android " + Build.VERSION.RELEASE + " · " + Build.MODEL);
+    }
+
+    // ---------------------------------------------------------------- telas visíveis e bolinha
+    private int telasVisiveis;
+
+    /** Cada tela do app avisa quando aparece/some. Sem nenhuma tela visível, a bolinha segura o app vivo. */
+    void telaVisivel(boolean sim) {
+        telasVisiveis = Math.max(0, telasVisiveis + (sim ? 1 : -1));
+        h.removeCallbacks(checarBolha);
+        h.postDelayed(checarBolha, sim ? 0 : 350);           // espera a próxima tela abrir (troca entre telas)
+    }
+
+    private final Runnable checarBolha = new Runnable() {
+        @Override public void run() {
+            if (telasVisiveis > 0) { bolha.esconder(); return; }
+            if ((ativa || rede.midia.transmitindo() || aa.ligado()) && Bolha.podeAparecer(ctx)) bolha.mostrar();
+        }
+    };
+
+    // ---------------------------------------------------------------- tela
+    void mostrarEm(Tela t) {
+        tela = t;
+        if (t != null) t.tudoDeNovo();
+    }
+
+    void soltar(Tela t) { if (tela == t) tela = null; }
+
+    synchronized String linhasNaTela() {
+        StringBuilder sb = new StringBuilder();
+        for (String s : logTela) sb.append(s).append('\n');
+        return sb.toString();
+    }
+
+    synchronized String logCompleto() { return logTudo.toString(); }
+
+    synchronized void limparLog() {
+        logTudo.setLength(0);
+        logTela.clear();
+    }
+
+    String estadoTexto() { return estadoTexto; }
+    boolean estadoOk() { return estadoOk; }
+
+    // ---------------------------------------------------------------- ações
+    void conectar() {
+        ativa = true;
+        Servico.ligar(ctx);
+        situacaoDaBateria();
+        vigiar();
+        painel.procurar();
+    }
+
+    /** Diz como o Android está tratando o app (economia de bateria, restrições, grupo de espera). */
+    void situacaoDaBateria() {
+        StringBuilder sb = new StringBuilder("Bateria: ");
+        try {
+            android.os.PowerManager pm = (android.os.PowerManager) ctx.getSystemService(Context.POWER_SERVICE);
+            boolean livre = pm.isIgnoringBatteryOptimizations(ctx.getPackageName());
+            sb.append(livre ? "sem restrição ✓" : "OTIMIZADA (o Android pode congelar o app)");
+        } catch (Exception e) { sb.append("?"); }
+        try {
+            android.app.ActivityManager am = (android.app.ActivityManager) ctx.getSystemService(Context.ACTIVITY_SERVICE);
+            if (Build.VERSION.SDK_INT >= 28 && am.isBackgroundRestricted()) sb.append(" · RESTRITO em segundo plano");
+        } catch (Exception ignored) {}
+        try {
+            if (Build.VERSION.SDK_INT >= 28) {
+                android.app.usage.UsageStatsManager u = (android.app.usage.UsageStatsManager) ctx.getSystemService(Context.USAGE_STATS_SERVICE);
+                sb.append(" · grupo ").append(u.getAppStandbyBucket());
+            }
+        } catch (Exception ignored) {}
+        log(sb.toString());
+    }
+
+    boolean bateriaLivre() {
+        try {
+            android.os.PowerManager pm = (android.os.PowerManager) ctx.getSystemService(Context.POWER_SERVICE);
+            return pm.isIgnoringBatteryOptimizations(ctx.getPackageName());
+        } catch (Exception e) { return true; }
+    }
+
+    private Thread vigia;
+
+    /** Uma linha que acorda a cada 100 ms: se ela demorar muito, foi o Android que congelou o app inteiro. */
+    private synchronized void vigiar() {
+        if (vigia != null) return;
+        vigia = new Thread(new Runnable() { @Override public void run() {
+            long antes = android.os.SystemClock.elapsedRealtime();
+            int avisos = 0;
+            while (true) {
+                try { Thread.sleep(100); } catch (InterruptedException e) { return; }
+                long agora = android.os.SystemClock.elapsedRealtime();
+                long d = agora - antes - 100;
+                if (d > 400 && ativa && avisos++ < 60) log("  ⚠ o Android congelou o app inteiro por " + d + " ms");
+                antes = agora;
+            }
+        }}, "vigia");
+        vigia.setDaemon(true);
+        vigia.start();
+    }
+
+    void desconectar() {
+        ativa = false;
+        bolha.esconder();
+        aa.parar();
+        painel.desconectar();
+        rede.parar();
+        Servico.desligar(ctx);
+        estado("Desconectado", false);
+        log("Desconectado pelo botão.");
+    }
+
+    void criarRede() { criarRede(freqPedida); }
+
+    private void criarRede(int frequencia) {
+        if (Build.VERSION.SDK_INT >= 33 && ctx.checkSelfPermission("android.permission.NEARBY_WIFI_DEVICES") != PackageManager.PERMISSION_GRANTED) {
+            log("! Falta a permissão de dispositivos próximos (Wi-Fi). Abra o app e aceite.");
+            estado("Falta a permissão de dispositivos próximos", false);
+            return;
+        }
+        rede.criar(frequencia, new Rede.Pronta() {
+            @Override public void rede(String ssid, String senha, String ip) {
+                painel.enviarWifi(ssid, senha, ip);
+                estado("Esperando o painel entrar no Wi-Fi…", true);
+            }
+        });
+    }
+
+    // ---------------------------------------------------------------- Painel.Ouvinte
+    @Override public void log(String linha) {
+        final String l = hora.format(new Date()) + "  " + linha;
+        synchronized (this) {
+            logTudo.append(l).append('\n');
+            if (logTudo.length() > 4_000_000) logTudo.delete(0, 1_000_000);
+            logTela.add(l);
+            if (logTela.size() > 500) logTela.subList(0, logTela.size() - 400).clear();
+        }
+        h.post(new Runnable() { @Override public void run() {
+            Tela t = tela;
+            if (t != null) t.novaLinha(l);
+        }});
+    }
+
+    @Override public void estado(final String texto, final boolean ok) {
+        estadoTexto = texto;
+        estadoOk = ok;
+        h.post(new Runnable() { @Override public void run() {
+            Tela t = tela;
+            if (t != null) t.novoEstado(texto, ok);
+        }});
+    }
+
+    @Override public void painelPedeRede(int status, int frequencia, String json) {
+        freqPedida = frequencia;
+        if (status == 2) criarRede(frequencia);
+        else if (status == 1) { log("O painel quer que o celular entre na rede DELE (ainda não implementado): " + json); estado("Este painel ainda não é compatível (envie o log)", false); }
+        else if (status == 0) log("O painel diz que a rede já está pronta.");
+    }
+
+    @Override public void painelNaRede(String ip) {
+        if (ip == null || ip.isEmpty() || ip.startsWith("0.") || ip.startsWith("127.")) {
+            log("O painel ainda está pegando IP (" + ip + "), espero o próximo aviso.");
+            return;
+        }
+        log("O painel está na rede com IP " + ip + ". Apresentando o celular…");
+        rede.apresentar(ip);
+    }
+}
