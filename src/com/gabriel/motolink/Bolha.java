@@ -176,8 +176,16 @@ final class Bolha {
             if (MainActivity.naFrente) return;
             sessao.log("  o Android não deixou abrir direto; tentando pelo caminho autorizado…");
             try {
+                android.os.Bundle criador = null;
+                if (Build.VERSION.SDK_INT >= 35) {             // Android 15+: quem cria também precisa autorizar
+                    android.app.ActivityOptions co = android.app.ActivityOptions.makeBasic();
+                    try {
+                        co.getClass().getMethod("setPendingIntentCreatorBackgroundActivityStartMode", int.class).invoke(co, 1);
+                        criador = co.toBundle();
+                    } catch (Exception ignored) {}
+                }
                 android.app.PendingIntent pi = android.app.PendingIntent.getActivity(ctx, 7, intencao(),
-                        android.app.PendingIntent.FLAG_IMMUTABLE | android.app.PendingIntent.FLAG_UPDATE_CURRENT);
+                        android.app.PendingIntent.FLAG_IMMUTABLE | android.app.PendingIntent.FLAG_UPDATE_CURRENT, criador);
                 android.os.Bundle op = null;
                 if (Build.VERSION.SDK_INT >= 34) {
                     android.app.ActivityOptions ao = android.app.ActivityOptions.makeBasic();

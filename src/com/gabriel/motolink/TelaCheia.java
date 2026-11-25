@@ -72,6 +72,17 @@ public class TelaCheia extends Activity {
         lb.rightMargin = Estilo.dp(this, 10);
         raiz.addView(botoes, lb);
 
+        // não deixa os botões ficarem embaixo do furo da câmera
+        if (Build.VERSION.SDK_INT >= 28) {
+            raiz.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+                @Override public WindowInsets onApplyWindowInsets(View v, WindowInsets in) {
+                    android.view.DisplayCutout c = in.getDisplayCutout();
+                    if (c != null) v.setPadding(c.getSafeInsetLeft(), c.getSafeInsetTop(), c.getSafeInsetRight(), c.getSafeInsetBottom());
+                    else v.setPadding(0, 0, 0, 0);
+                    return in;
+                }
+            });
+        }
         setContentView(raiz);
         esconderBarras();
     }

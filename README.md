@@ -14,10 +14,11 @@ O Moto Link conecta o celular direto no painel da moto (o mesmo painel que usa o
 
 ## Download
 
-Baixe o `MotoLink-v1.0.apk` na página de [Releases](../../releases).
+Baixe o APK mais recente (`MotoLink-v1.0.1.apk`) na página de [Releases](../../releases).
 
 ## Requisitos
 
+- **Celular autorizado:** o app está registrado no Google em distribuição limitada. Peça para o autor autorizar o seu aparelho antes de instalar; sem isso, o Android bloqueia a instalação.
 - Android 8 ou mais novo, com Bluetooth e Wi-Fi.
 - App **Android Auto** instalado.
 - O app Carbit **fechado** na hora de conectar (os dois disputam o painel).
@@ -25,7 +26,7 @@ Baixe o `MotoLink-v1.0.apk` na página de [Releases](../../releases).
 ## Instalação
 
 1. Baixe o APK e abra. O celular vai pedir para permitir instalar apps dessa fonte: permita.
-2. Se o Play Protect avisar, toque em **Mais detalhes → Instalar mesmo assim**. O aviso aparece porque o app não está na Play Store.
+2. Se o Play Protect pedir, toque em **Verificar app**. O aviso aparece porque o app não está na Play Store.
 3. Abra o Moto Link e siga a tela **Prepare o celular**. São 5 passos, só na primeira vez:
    1. Permitir Bluetooth e Wi-Fi.
    2. Liberar o app para rodar em segundo plano (bateria sem restrição).

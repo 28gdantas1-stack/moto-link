@@ -43,7 +43,8 @@ print('d8 ok')
 # 3) recursos + manifesto
 sh(AAPT2, 'compile', '--dir', os.path.join(A, 'res'), '-o', os.path.join(OUT, 'res.zip'))
 sh(AAPT2, 'link', '-I', ANDROID, '--manifest', os.path.join(A, 'AndroidManifest.xml'),
-   '--min-sdk-version', '26', '--target-sdk-version', '33', '--version-code', VC, '--version-name', VN,
+   '--min-sdk-version', '26', '--target-sdk-version', '36', '--version-code', VC, '--version-name', VN,
+   *(['-A', os.path.join(A, 'assets')] if os.path.isdir(os.path.join(A, 'assets')) else []),
    '-o', os.path.join(OUT, 'base.apk'), os.path.join(OUT, 'res.zip'))
 print('aapt2 ok')
 

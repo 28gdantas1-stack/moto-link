@@ -77,13 +77,33 @@ public class MainActivity extends Activity implements Sessao.Tela {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         getWindow().setStatusBarColor(Estilo.FUNDO);
         getWindow().setNavigationBarColor(Estilo.FUNDO);
+        getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Estilo.FUNDO));
         sessao = Sessao.de(this);
         guia = getSharedPreferences("guia", MODE_PRIVATE);
         montarTela();
+        respeitarBarras();
         sessao.mostrarEm(this);
     }
 
     private int dp(float v) { return Estilo.dp(this, v); }
+
+    /**
+     * Android 15+: a tela vai de ponta a ponta (por baixo da barra de status e da de navegação).
+     * Afasta o conteúdo das barras para nada ficar escondido atrás delas.
+     */
+    private void respeitarBarras() {
+        if (Build.VERSION.SDK_INT < 35) return;
+        rolar.setClipToPadding(false);
+        rolar.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+            @Override public android.view.WindowInsets onApplyWindowInsets(View v, android.view.WindowInsets in) {
+                android.graphics.Insets b = in.getInsets(android.view.WindowInsets.Type.systemBars()
+                        | android.view.WindowInsets.Type.displayCutout());
+                v.setPadding(b.left, b.top, b.right, b.bottom);
+                return in;
+            }
+        });
+        rolar.requestApplyInsets();
+    }
 
     // ================================================================== tela
     private void montarTela() {
