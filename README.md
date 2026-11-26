@@ -18,7 +18,7 @@ Alguns painéis Zontes mostram, ao ligar, uma tela com **dois QR codes** ("Pleas
 
 Para eles existe o **Moto Link NM**, um app separado (pacote `com.gabriel.motolink.nm`) que pode ficar instalado junto com o Moto Link. Ele procura o painel pelo Wi-Fi Direct, conecta e segue o mesmo caminho do Moto Link a partir daí. Se não achar o painel sozinho, dá para colar o link do QR da esquerda (lido com a câmera) no passo 6 da preparação.
 
-> Versão nova e ainda em teste. Se não funcionar, mande o log.
+Testado em uma Zontes com o painel de QR code, rodando sem travar. Se não funcionar no seu, mande o log.
 
 ## Download
 
