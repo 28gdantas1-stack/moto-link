@@ -230,7 +230,7 @@ final class Bolha {
             p.setTypeface(Typeface.DEFAULT_BOLD);
             p.setTextAlign(Paint.Align.CENTER);
             p.setTextSize(r * 0.62f);
-            c.drawText("ML", r, r + r * 0.22f, p);
+            c.drawText(Variante.SIGLA, r, r + r * 0.22f, p);
         }
 
         @Override public boolean onTouchEvent(MotionEvent e) {

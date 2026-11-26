@@ -149,7 +149,7 @@ final class Video {
         p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
         p.setColor(0xFF2BD47E);
         p.setTextSize(h * 0.09f);
-        c.drawText("Moto Link", w / 2f, h * 0.46f, p);
+        c.drawText(Variante.NOME, w / 2f, h * 0.46f, p);
         p.setTypeface(Typeface.DEFAULT);
         p.setColor(0xFF9A9AA6);
         p.setTextSize(h * 0.06f);

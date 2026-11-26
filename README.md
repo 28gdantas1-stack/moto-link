@@ -12,6 +12,14 @@ O Moto Link conecta o celular direto no painel da moto (o mesmo painel que usa o
 - Testado em uma **Zontes GK 350 (2024/25)** com um celular Samsung Galaxy (Android 17).
 - Outras Zontes com o mesmo painel Carbit devem funcionar, mas não foram testadas. Se não funcionar na sua, mande o log (veja [Problemas](#se-algo-não-funcionar)).
 
+## Moto Link NM (painéis com QR code)
+
+Alguns painéis Zontes mostram, ao ligar, uma tela com **dois QR codes** ("Please open Carbit Ride to scan QR code…"). Esses painéis não se anunciam pelo Bluetooth como `EC…`: eles aparecem no Wi-Fi Direct (por exemplo `ZT5Gf541`) e esperam o celular pedir a conexão.
+
+Para eles existe o **Moto Link NM**, um app separado (pacote `com.gabriel.motolink.nm`) que pode ficar instalado junto com o Moto Link. Ele procura o painel pelo Wi-Fi Direct, conecta e segue o mesmo caminho do Moto Link a partir daí. Se não achar o painel sozinho, dá para colar o link do QR da esquerda (lido com a câmera) no passo 6 da preparação.
+
+> Versão nova e ainda em teste. Se não funcionar, mande o log.
+
 ## Download
 
 Baixe o APK mais recente (`MotoLink-v1.0.1.apk`) na página de [Releases](../../releases).
@@ -78,6 +86,9 @@ O projeto não usa Gradle. Precisa de Java 17+, Python 3, OpenSSL e uma pasta `f
 ```bash
 python3 build.py 100 1.0      # versionCode, versionName
 # saída: out/MotoLink.apk
+
+python3 build.py 100 1.0 nm   # Moto Link NM
+# saída: out/MotoLink-NM.apk
 ```
 
 Na primeira compilação o script cria uma chave de assinatura em `assinatura/`. Guarde essa pasta e **não publique**: as próximas versões precisam ser assinadas com a mesma chave para instalar por cima.

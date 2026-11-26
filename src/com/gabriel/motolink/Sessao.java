@@ -64,7 +64,7 @@ final class Sessao implements Painel.Ouvinte {
         rede.aoComecarVideo = new Runnable() { @Override public void run() {
             if (!aa.ligado()) aa.conectar();          // painel pronto: tenta pôr o Android Auto nele
         }};
-        log("Moto Link v" + VERSAO + " · Android " + Build.VERSION.RELEASE + " · " + Build.MODEL);
+        log(Variante.NOME + " v" + VERSAO + " · Android " + Build.VERSION.RELEASE + " · " + Build.MODEL);
     }
 
     // ---------------------------------------------------------------- telas visíveis e bolinha
@@ -114,7 +114,50 @@ final class Sessao implements Painel.Ouvinte {
         Servico.ligar(ctx);
         situacaoDaBateria();
         vigiar();
-        painel.procurar();
+        if (Variante.NM) {
+            if (Build.VERSION.SDK_INT >= 33 && ctx.checkSelfPermission("android.permission.NEARBY_WIFI_DEVICES") != PackageManager.PERMISSION_GRANTED) {
+                log("! Falta a permissão de dispositivos próximos (Wi-Fi). Abra o app e aceite.");
+                estado("Falta a permissão de dispositivos próximos", false);
+                return;
+            }
+            android.content.SharedPreferences q = ctx.getSharedPreferences("painel_nm", Context.MODE_PRIVATE);
+            rede.entrarNoPainel(q.getString("nome", null), q.getString("mac", null));
+        } else {
+            painel.procurar();
+        }
+    }
+
+    // ---------------------------------------------------------------- QR code do painel (Moto Link NM)
+    /** Lê o link do QR do painel (http://www.carbit.com.cn/...?name=ZT5Gf541&mac=...) e guarda nome e endereço. */
+    String guardarQr(String link) {
+        if (link == null) return null;
+        link = link.trim();
+        int q = link.indexOf('?');
+        if (!link.contains("carbit.com.cn") || q < 0) return null;
+        String nome = null, mac = null;
+        for (String par : link.substring(q + 1).split("&")) {
+            int e = par.indexOf('=');
+            if (e <= 0) continue;
+            String k = par.substring(0, e), v;
+            try { v = java.net.URLDecoder.decode(par.substring(e + 1), "UTF-8"); } catch (Exception x) { v = par.substring(e + 1); }
+            if (k.equals("name")) nome = v;
+            else if (k.equals("mac")) mac = v;
+        }
+        if (nome == null && mac == null) return null;
+        ctx.getSharedPreferences("painel_nm", Context.MODE_PRIVATE).edit().putString("nome", nome).putString("mac", mac).apply();
+        log("QR do painel guardado: nome " + nome + ", endereço " + mac);
+        return nome != null ? nome : mac;
+    }
+
+    /** Nome do painel guardado pelo QR (ou o último achado sozinho), para mostrar na tela. */
+    String painelGuardado() {
+        android.content.SharedPreferences q = ctx.getSharedPreferences("painel_nm", Context.MODE_PRIVATE);
+        String n = q.getString("nome", null);
+        return n != null ? n : q.getString("ultimoNome", null);
+    }
+
+    boolean qrGuardado() {
+        return ctx.getSharedPreferences("painel_nm", Context.MODE_PRIVATE).getString("nome", null) != null;
     }
 
     /** Diz como o Android está tratando o app (economia de bateria, restrições, grupo de espera). */

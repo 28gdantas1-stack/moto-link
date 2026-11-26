@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Monta o APK do Moto Link: javac -> d8 (dex) -> aapt2 (recursos) -> zip alinhado -> apksigner.
-Uso: python3 build.py [versionCode] [versionName]"""
+Uso: python3 build.py [versionCode] [versionName] [nm]
+  nm: monta o Moto Link NM (painéis com QR code / Wi-Fi Direct), outro pacote: com.gabriel.motolink.nm"""
 import glob, os, shutil, struct, subprocess, sys, zipfile
 
 A = os.path.dirname(os.path.abspath(__file__))
@@ -15,6 +16,9 @@ D8 = os.path.join(T, 'd8.jar')
 SIGNER = os.path.join(T, 'apksigner.jar')
 OUT = os.path.join(A, 'out')
 VC, VN = (sys.argv[1], sys.argv[2]) if len(sys.argv) > 2 else ('1', '0.1')
+NM = len(sys.argv) > 3 and sys.argv[3].lower() == 'nm'
+PACOTE = 'com.gabriel.motolink.nm' if NM else 'com.gabriel.motolink'
+NOME_APK = 'MotoLink-NM.apk' if NM else 'MotoLink.apk'
 
 
 def sh(*cmd):
@@ -31,6 +35,14 @@ os.makedirs(os.path.join(OUT, 'classes'))
 
 # 1) Java -> .class
 fontes = glob.glob(os.path.join(A, 'src', '**', '*.java'), recursive=True)
+if NM:   # mesma base de código, com a chave NM ligada
+    orig = [f for f in fontes if f.endswith(os.sep + 'Variante.java')][0]
+    gen = os.path.join(OUT, 'gen', 'Variante.java')
+    os.makedirs(os.path.dirname(gen))
+    texto = open(orig, encoding='utf-8').read()
+    assert 'static final boolean NM = false;' in texto
+    open(gen, 'w', encoding='utf-8').write(texto.replace('static final boolean NM = false;', 'static final boolean NM = true;'))
+    fontes = [f for f in fontes if f != orig] + [gen]
 print(sh('javac', '-nowarn', '-Xlint:none', '-parameters', '--release', '8', '-classpath', ANDROID,
          '-d', os.path.join(OUT, 'classes'), *fontes) or 'javac ok')
 
@@ -41,9 +53,18 @@ sh('java', '-cp', D8, 'com.android.tools.r8.D8', '--release', '--min-api', '26',
 print('d8 ok')
 
 # 3) recursos + manifesto
-sh(AAPT2, 'compile', '--dir', os.path.join(A, 'res'), '-o', os.path.join(OUT, 'res.zip'))
+RES = os.path.join(A, 'res')
+if NM:   # nome do app na tela inicial
+    RES = os.path.join(OUT, 'res-nm')
+    shutil.copytree(os.path.join(A, 'res'), RES)
+    sx = os.path.join(RES, 'values', 'strings.xml')
+    texto = open(sx, encoding='utf-8').read()
+    assert '>Moto Link<' in texto
+    open(sx, 'w', encoding='utf-8').write(texto.replace('>Moto Link<', '>Moto Link NM<'))
+sh(AAPT2, 'compile', '--dir', RES, '-o', os.path.join(OUT, 'res.zip'))
 sh(AAPT2, 'link', '-I', ANDROID, '--manifest', os.path.join(A, 'AndroidManifest.xml'),
    '--min-sdk-version', '26', '--target-sdk-version', '36', '--version-code', VC, '--version-name', VN,
+   *(['--rename-manifest-package', PACOTE] if NM else []),
    *(['-A', os.path.join(A, 'assets')] if os.path.isdir(os.path.join(A, 'assets')) else []),
    '-o', os.path.join(OUT, 'base.apk'), os.path.join(OUT, 'res.zip'))
 print('aapt2 ok')
@@ -80,7 +101,7 @@ if not os.path.exists(pk8):
     sh('openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', pem, '-out', crt,
        '-days', '10000', '-subj', '/CN=Moto Link/O=Gabriel/C=BR')
     sh('openssl', 'pkcs8', '-topk8', '-inform', 'PEM', '-outform', 'DER', '-in', pem, '-out', pk8, '-nocrypt')
-final = os.path.join(OUT, 'MotoLink.apk')
+final = os.path.join(OUT, NOME_APK)
 sh('java', '-jar', SIGNER, 'sign', '--key', pk8, '--cert', crt, '--min-sdk-version', '26',
    '--out', final, os.path.join(OUT, 'unsigned.apk'))
 print(sh('java', '-jar', SIGNER, 'verify', '--verbose', final).splitlines()[0:4])

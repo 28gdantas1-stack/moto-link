@@ -58,7 +58,7 @@ public class MainActivity extends Activity implements Sessao.Tela {
     private ScrollView rolar;
     private LinearLayout cartaoGuia, avisoCarbit;
     private TextView tituloGuia, subGuia, esconderGuia;
-    private Estilo.Passo pPermissoes, pBateria, pBolha, pAA, pDev;
+    private Estilo.Passo pPermissoes, pBateria, pBolha, pAA, pDev, pQr;
     private boolean guiaAberto, aaInstalado, carbitInstalado;
 
     private Estilo.LinhaStatus stMoto, stAA;
@@ -120,10 +120,10 @@ public class MainActivity extends Activity implements Sessao.Tela {
         cab.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout nomes = new LinearLayout(this);
         nomes.setOrientation(LinearLayout.VERTICAL);
-        TextView titulo = Estilo.texto(this, "Moto Link", 32, Estilo.TEXTO, true);
+        TextView titulo = Estilo.texto(this, Variante.NOME, 32, Estilo.TEXTO, true);
         titulo.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
         nomes.addView(titulo);
-        TextView sub = Estilo.texto(this, "Android Auto no painel da sua Zontes", 14, Estilo.TEXTO2, false);
+        TextView sub = Estilo.texto(this, Variante.NM ? "Android Auto nos painéis Zontes com QR code" : "Android Auto no painel da sua Zontes", 14, Estilo.TEXTO2, false);
         sub.setPadding(0, dp(2), 0, 0);
         nomes.addView(sub);
         cab.addView(nomes, new LinearLayout.LayoutParams(0, -2, 1));
@@ -280,7 +280,7 @@ public class MainActivity extends Activity implements Sessao.Tela {
         col.addView(secDiag);
         col.addView(diag);
 
-        TextView rodape = Estilo.texto(this, "Moto Link v" + Sessao.VERSAO, 12, Estilo.TEXTO3, false);
+        TextView rodape = Estilo.texto(this, Variante.NOME + " v" + Sessao.VERSAO, 12, Estilo.TEXTO3, false);
         rodape.setGravity(Gravity.CENTER);
         rodape.setPadding(0, dp(24), 0, 0);
         col.addView(rodape);
@@ -299,7 +299,7 @@ public class MainActivity extends Activity implements Sessao.Tela {
         subGuia.setPadding(0, dp(4), 0, dp(6));
         cartaoGuia.addView(subGuia);
 
-        pPermissoes = new Estilo.Passo(this, 1, "Bluetooth e Wi-Fi",
+        pPermissoes = new Estilo.Passo(this, 1, Variante.NM ? "Wi-Fi e dispositivos próximos" : "Bluetooth e Wi-Fi",
                 "Para achar o painel e criar a conexão com ele.", "Permitir", new View.OnClickListener() {
             @Override public void onClick(View v) { resolverConexao(); }
         });
@@ -319,7 +319,7 @@ public class MainActivity extends Activity implements Sessao.Tela {
                 "Abra, role até o fim e toque 10 vezes em \"Versão\". Confirme o aviso.", "Abrir", new View.OnClickListener() {
             @Override public void onClick(View v) {
                 if (AndroidAuto.abrirConfigDoAA(MainActivity.this))
-                    toastLongo("Role até o fim e toque 10 vezes em \"Versão\". Depois volte para o Moto Link.");
+                    toastLongo("Role até o fim e toque 10 vezes em \"Versão\". Depois volte para o " + Variante.NOME + ".");
                 else toastLongo("Não consegui abrir o Android Auto. Ele está instalado?");
             }
         });
@@ -330,6 +330,13 @@ public class MainActivity extends Activity implements Sessao.Tela {
         jaFiz.setPadding(dp(44), 0, 0, dp(4));
         jaFiz.setTag("jaFiz");
         cartaoGuia.addView(jaFiz);
+        if (Variante.NM) {
+            pQr = new Estilo.Passo(this, 6, "QR code do painel (opcional)",
+                    "", "Colar", new View.OnClickListener() {
+                @Override public void onClick(View v) { colarQr(); }
+            });
+            cartaoGuia.addView(pQr);
+        }
 
         avisoCarbit = new LinearLayout(this);
         avisoCarbit.setOrientation(LinearLayout.VERTICAL);
@@ -357,20 +364,24 @@ public class MainActivity extends Activity implements Sessao.Tela {
         c.setOrientation(LinearLayout.VERTICAL);
         Estilo.cartao(this, c);
         bloco(c, "Toda vez que for andar",
-                "1.  Ligue a ignição da moto.\n"
-                + "2.  Abra o Moto Link e toque em Conectar à moto.\n"
+                (Variante.NM ? "1.  Ligue a ignição da moto. O painel mostra a tela com os QR codes.\n"
+                             : "1.  Ligue a ignição da moto.\n")
+                + "2.  Abra o " + Variante.NOME + " e toque em Conectar à moto.\n"
                 + "3.  Em uns 15 segundos o Android Auto aparece no painel.\n"
                 + "4.  Pode guardar o celular. A bolinha flutuante mantém tudo funcionando.");
         bloco(c, "Depois de reiniciar o celular",
                 "O Android Auto desliga o servidor dele quando o celular reinicia ou o app atualiza. "
-                + "O Moto Link percebe e abre a tela certa: toque em ⋮ (no alto, à direita) → "
+                + "O " + Variante.NOME + " percebe e abre a tela certa: toque em ⋮ (no alto, à direita) → "
                 + "\"Iniciar servidor da unidade principal\". Ele conecta sozinho em seguida.");
         bloco(c, "Para mexer no Android Auto",
                 "O painel da moto não tem toque. Use a imagem aqui no app (ou Tela cheia) como se fosse o painel. "
                 + "O 🎤 chama o Google Assistente e o ◀ volta.\n"
                 + "O som e a voz da navegação saem pelo celular ou pelo intercomunicador do capacete.");
         bloco(c, "Se algo não funcionar",
-                "•  Não acha o painel: confira se a ignição e o Bluetooth estão ligados e se o Carbit está fechado.\n"
+                (Variante.NM
+                    ? "•  Não acha o painel: confira se a ignição e o Wi-Fi estão ligados, se o painel está na tela dos QR codes e se o Carbit está fechado. "
+                      + "Se continuar, leia o QR da esquerda com a câmera, copie o link e toque em Colar no passo 6.\n"
+                    : "•  Não acha o painel: confira se a ignição e o Bluetooth estão ligados e se o Carbit está fechado.\n")
                 + "•  \"Ligue o Wi-Fi\": o Wi-Fi do celular precisa estar ligado, mas não precisa estar em rede nenhuma.\n"
                 + "•  A imagem trava com o celular no bolso: faça os passos 2 e 3 da preparação.\n"
                 + "•  O botão MOD do guidão tira o Android Auto do painel. Se acontecer, toque em Desconectar e Conectar de novo.\n"
@@ -440,7 +451,7 @@ public class MainActivity extends Activity implements Sessao.Tela {
     private boolean devFeito() { return guia.getBoolean("devOk", false) || guia.getBoolean("aaOk", false); }
 
     private void atualizarGuia() {
-        boolean perm = temPermissoes(), bt = bluetoothLigado(), wifi = wifiLigado();
+        boolean perm = temPermissoes(), bt = Variante.NM || bluetoothLigado(), wifi = wifiLigado();
         boolean conexao = perm && bt && wifi;
         pPermissoes.feito(conexao);
         pPermissoes.explicacao.setText(!perm ? "Para achar o painel e criar a conexão com ele."
@@ -457,6 +468,16 @@ public class MainActivity extends Activity implements Sessao.Tela {
         View jaFiz = cartaoGuia.findViewWithTag("jaFiz");
         if (jaFiz != null) jaFiz.setVisibility(dev ? View.GONE : View.VISIBLE);
         avisoCarbit.setVisibility(carbitInstalado ? View.VISIBLE : View.GONE);
+        if (pQr != null) {
+            String nomeQr = sessao.painelGuardado();
+            boolean qr = sessao.qrGuardado();
+            pQr.feito(qr);
+            pQr.acao.setVisibility(View.VISIBLE);
+            pQr.acao.setText(qr ? "Trocar" : "Colar");
+            pQr.explicacao.setText(qr ? "Painel " + nomeQr + " guardado."
+                    : (nomeQr != null ? "O app achou o painel " + nomeQr + " sozinho. " : "O app acha o painel sozinho. ")
+                      + "Se não achar: leia o QR da esquerda do painel com a câmera, copie o link e toque em Colar.");
+        }
 
         boolean pronto = conexao && bateria && bolha && aaInstalado && dev;
         tituloGuia.setText(pronto ? "Celular pronto ✓" : "Prepare o celular");
@@ -469,7 +490,7 @@ public class MainActivity extends Activity implements Sessao.Tela {
 
     private void resolverConexao() {
         if (!temPermissoes()) { pedirPermissoes(); return; }
-        if (!bluetoothLigado()) {
+        if (!Variante.NM && !bluetoothLigado()) {
             try { startActivity(new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)); } catch (Exception ignored) {}
             return;
         }
@@ -498,13 +519,29 @@ public class MainActivity extends Activity implements Sessao.Tela {
             if (!instalado(p)) continue;
             try {
                 startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + p)));
-                toastLongo("Toque em \"Forçar parada\" e volte para o Moto Link.");
+                toastLongo("Toque em \"Forçar parada\" e volte para o " + Variante.NOME + ".");
                 return;
             } catch (Exception ignored) {}
         }
     }
 
     private void toastLongo(String t) { Toast.makeText(this, t, Toast.LENGTH_LONG).show(); }
+
+    /** Moto Link NM: lê da área de transferência o link copiado do QR code do painel. */
+    private void colarQr() {
+        String texto = null;
+        try {
+            android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            if (cm != null && cm.hasPrimaryClip() && cm.getPrimaryClip().getItemCount() > 0) {
+                CharSequence cs = cm.getPrimaryClip().getItemAt(0).coerceToText(this);
+                if (cs != null) texto = cs.toString();
+            }
+        } catch (Exception ignored) {}
+        String nome = sessao.guardarQr(texto);
+        if (nome != null) toastLongo("Painel " + nome + " guardado ✓");
+        else toastLongo("Não achei o link do QR. Aponte a câmera para o QR da esquerda do painel, toque em copiar o link e tente de novo.");
+        atualizarGuia();
+    }
 
     // ================================================================== atualização periódica
     private int tiques;
@@ -542,7 +579,7 @@ public class MainActivity extends Activity implements Sessao.Tela {
         cartaoSemAA.setVisibility(semAA ? View.VISIBLE : View.GONE);
         dicaAA.setText(aa.servidorDesligado()
                 ? "O servidor do Android Auto está desligado (acontece depois de reiniciar o celular). "
-                  + "Toque em Abrir Android Auto → ⋮ → \"Iniciar servidor da unidade principal\". O Moto Link conecta sozinho logo depois."
+                  + "Toque em Abrir Android Auto → ⋮ → \"Iniciar servidor da unidade principal\". O " + Variante.NOME + " conecta sozinho logo depois."
                 : "O painel está pronto. Toque em Tentar de novo para mandar o Android Auto.");
     }
 
@@ -607,10 +644,10 @@ public class MainActivity extends Activity implements Sessao.Tela {
     }
 
     private void abrirPermissaoBolha() {
-        log("Libere \"Aparecer sobre outros apps\" para o Moto Link (é a bolinha flutuante).");
+        log("Libere \"Aparecer sobre outros apps\" para o " + Variante.NOME + " (é a bolinha flutuante).");
         try {
             startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())));
-            toastLongo("Ative \"Aparecer sobre outros apps\" para o Moto Link e volte.");
+            toastLongo("Ative \"Aparecer sobre outros apps\" para o " + Variante.NOME + " e volte.");
         } catch (Exception e) {
             log("! Não consegui abrir a tela da permissão: " + e.getMessage());
         }
@@ -660,6 +697,9 @@ public class MainActivity extends Activity implements Sessao.Tela {
     }
 
     private String[] permissoesNecessarias() {
+        if (Variante.NM)   // só Wi-Fi Direct: dispositivos próximos (13+) ou localização (até 12)
+            return Build.VERSION.SDK_INT >= 33 ? new String[]{Manifest.permission.NEARBY_WIFI_DEVICES}
+                    : new String[]{Manifest.permission.ACCESS_FINE_LOCATION};
         return Build.VERSION.SDK_INT >= 31
                 ? (Build.VERSION.SDK_INT >= 33
                     ? new String[]{Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.NEARBY_WIFI_DEVICES}
@@ -676,7 +716,7 @@ public class MainActivity extends Activity implements Sessao.Tela {
             requestPermissions(faltam.toArray(new String[0]), 1);
             return false;
         }
-        if (!bluetoothLigado()) {
+        if (!Variante.NM && !bluetoothLigado()) {
             try { startActivity(new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)); } catch (Exception ignored) {}
             return false;
         }
@@ -687,8 +727,8 @@ public class MainActivity extends Activity implements Sessao.Tela {
         boolean ok = true;
         for (int i = 0; i < r.length && i < p.length; i++)
             if (!p[i].endsWith("POST_NOTIFICATIONS")) ok &= r[i] == PackageManager.PERMISSION_GRANTED;
-        log(ok ? "Permissões de Bluetooth liberadas." : "! Sem permissão de Bluetooth o app não acha o painel.");
-        if (!ok) toastLongo("Sem essa permissão o Moto Link não consegue achar o painel.");
+        log(ok ? "Permissões liberadas." : "! Sem essa permissão o app não acha o painel.");
+        if (!ok) toastLongo("Sem essa permissão o " + Variante.NOME + " não consegue achar o painel.");
         atualizarGuia();
     }
 

@@ -115,7 +115,7 @@ final class AndroidAuto {
     /** Lembrete por cima do Android Auto: onde tocar para ligar o servidor. */
     static void dica(final Context c) {
         final android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
-        final String t = "Moto Link: toque em ⋮ (no alto, à direita) → \"Iniciar servidor da unidade principal\". Depois é só voltar.";
+        final String t = Variante.NOME + ": toque em ⋮ (no alto, à direita) → \"Iniciar servidor da unidade principal\". Depois é só voltar.";
         h.postDelayed(new Runnable() { @Override public void run() {
             try { android.widget.Toast.makeText(c, t, android.widget.Toast.LENGTH_LONG).show(); } catch (Exception ignored) {}
         }}, 900);

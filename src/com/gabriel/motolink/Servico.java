@@ -45,7 +45,7 @@ public class Servico extends Service {
         PendingIntent pi = PendingIntent.getActivity(this, 0, abrir, PendingIntent.FLAG_IMMUTABLE);
         Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CANAL) : new Notification.Builder(this);
         Notification n = b.setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
-                .setContentTitle("Moto Link")
+                .setContentTitle(Variante.NOME)
                 .setContentText("Conectado ao painel da moto")
                 .setContentIntent(pi)
                 .setOngoing(true)
