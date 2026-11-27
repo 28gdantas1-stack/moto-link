@@ -265,6 +265,16 @@ public class MainActivity extends Activity implements Sessao.Tela {
             @Override public void onClick(View v) { sessao.limparLog(); tudoDeNovo(); }
         }), peso(1, 8));
         diag.addView(a3, margem(0, 10));
+        modoVideo = Estilo.link(this, "", new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                sessao.videoCompativel(!Video.software);
+                mostrarModoVideo();
+                toastLongo(Video.software ? "Modo de vídeo compatível ligado. Vale na próxima conexão."
+                        : "Modo de vídeo normal. Vale na próxima conexão.");
+            }
+        });
+        mostrarModoVideo();
+        diag.addView(modoVideo);
         logRolagem = new ScrollView(this);
         logRolagem.setBackground(Estilo.fundo(0xFF050507, 16, this));
         logRolagem.setPadding(dp(12), dp(10), dp(12), dp(10));
@@ -537,6 +547,14 @@ public class MainActivity extends Activity implements Sessao.Tela {
     }
 
     private void toastLongo(String t) { Toast.makeText(this, t, Toast.LENGTH_LONG).show(); }
+
+    private TextView modoVideo;
+
+    private void mostrarModoVideo() {
+        if (modoVideo != null) modoVideo.setText(Video.software
+                ? "Vídeo: modo compatível (software) · tocar para voltar ao normal"
+                : "Vídeo: modo normal · se o app fechar sozinho, toque para usar o compatível");
+    }
 
     /** Abre a tela do hotspot (Roteador Wi-Fi / Ponto de acesso); cada fabricante usa um caminho. */
     private void abrirHotspot() {

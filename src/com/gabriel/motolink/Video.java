@@ -69,6 +69,31 @@ final class Video {
     int altura() { return h; }
     boolean rodando() { return rodando; }
 
+    /**
+     * Modo de vídeo compatível: codificador e decodificador por software, do próprio Android. Num POCO X5 Pro
+     * (Snapdragon 778G, Android 14) o serviço de vídeo da Qualcomm morria ~0,4 s depois de começar a codificar,
+     * e o Android fechava o app junto. O de software roda num processo separado e não tem esse problema.
+     */
+    static volatile boolean software;
+
+    static MediaCodec novoCodificador() throws java.io.IOException {
+        if (software) {
+            for (String n : new String[]{"c2.android.avc.encoder", "OMX.google.h264.encoder"}) {
+                try { return MediaCodec.createByCodecName(n); } catch (Exception ignored) {}
+            }
+        }
+        return MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
+    }
+
+    static MediaCodec novoDecodificador() throws java.io.IOException {
+        if (software) {
+            for (String n : new String[]{"c2.android.avc.decoder", "OMX.google.h264.decoder"}) {
+                try { return MediaCodec.createByCodecName(n); } catch (Exception ignored) {}
+            }
+        }
+        return MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
+    }
+
     synchronized void iniciar() throws Exception {
         if (rodando) return;
         MediaFormat f = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, w, h);
@@ -81,7 +106,7 @@ final class Video {
         f.setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0);
         f.setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 100_000);
         f.setInteger(MediaFormat.KEY_PRIORITY, 0);            // tempo real
-        codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
+        codec = novoCodificador();
         try {
             codec.configure(f, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
         } catch (Exception e) {

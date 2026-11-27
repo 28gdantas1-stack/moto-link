@@ -78,7 +78,7 @@ final class PonteAA {
         MediaFormat f = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, aaW, aaH);
         if (android.os.Build.VERSION.SDK_INT >= 30) f.setInteger(MediaFormat.KEY_LOW_LATENCY, 1);
         f.setInteger(MediaFormat.KEY_PRIORITY, 0);
-        dec = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
+        dec = Video.novoDecodificador();
         try {
             dec.configure(f, saidaDecod, null, 0);
         } catch (Exception e) {

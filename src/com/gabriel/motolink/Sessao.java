@@ -18,7 +18,7 @@ import java.util.Locale;
  */
 final class Sessao implements Painel.Ouvinte {
 
-    static final String VERSAO = "1.1.3";
+    static final String VERSAO = "1.1.4";
 
     interface Tela {
         void novaLinha(String linha);
@@ -54,6 +54,7 @@ final class Sessao implements Painel.Ouvinte {
 
     private Sessao(Context app) {
         ctx = app;
+        Video.software = app.getSharedPreferences("video", Context.MODE_PRIVATE).getBoolean("software", false);
         prepararCaixaPreta();
         painel = new Painel(app, this);
         rede = new Rede(app, this);
@@ -67,6 +68,7 @@ final class Sessao implements Painel.Ouvinte {
         }};
         log(Variante.NOME + " v" + VERSAO + " · Android " + Build.VERSION.RELEASE + " · " + Build.MODEL);
         contarFechamentoAnterior();
+        if (Video.software) log("Vídeo: modo compatível (codificador por software).");
     }
 
     // ---------------------------------------------------------------- caixa-preta: por que o app fechou?
@@ -126,7 +128,7 @@ final class Sessao implements Painel.Ouvinte {
             } catch (Exception ignored) {}
         }
         if (motivo != null) log("Último fechamento do app: " + motivo);
-        if (Build.VERSION.SDK_INT >= 31 && motivo != null && motivo.startsWith("ERRO nativo")) detalharErroNativo();
+        if (Build.VERSION.SDK_INT >= 31) verErrosNativos(motivo != null && motivo.startsWith("ERRO nativo"));
         boolean teveErro = logAnterior != null && logAnterior.contains("✖ ERRO que fechou o app");
         if (logAnterior != null && (teveErro || motivo != null)) {
             String[] linhas = logAnterior.split("\n");
@@ -138,14 +140,35 @@ final class Sessao implements Painel.Ouvinte {
         logAnterior = null;
     }
 
-    /** Erro nativo: o Android guarda um relatório (tombstone). Mostra as partes legíveis: bibliotecas, funções, threads. */
-    private void detalharErroNativo() {
+    /**
+     * Erros nativos recentes: mostra o último (se foi o motivo do fechamento) e, se algum dos últimos fechamentos foi
+     * o serviço de vídeo do celular morrendo, liga o modo de vídeo compatível sozinho.
+     */
+    private void verErrosNativos(boolean mostrarUltimo) {
         try {
             android.app.ActivityManager am = (android.app.ActivityManager) ctx.getSystemService(Context.ACTIVITY_SERVICE);
-            List<android.app.ApplicationExitInfo> l = am.getHistoricalProcessExitReasons(ctx.getPackageName(), 0, 1);
-            if (l.isEmpty()) return;
-            java.io.InputStream in = l.get(0).getTraceInputStream();
-            if (in == null) { log("  (o Android não guardou detalhes do erro nativo)"); return; }
+            List<android.app.ApplicationExitInfo> l = am.getHistoricalProcessExitReasons(ctx.getPackageName(), 0, 6);
+            for (int k = 0; k < l.size(); k++) {
+                android.app.ApplicationExitInfo i = l.get(k);
+                if (i.getReason() != 5) continue;
+                if (System.currentTimeMillis() - i.getTimestamp() > 3L * 24 * 3600 * 1000) break;
+                boolean mostrar = mostrarUltimo && k == 0;
+                if (!mostrar && Video.software) continue;
+                if (detalharErroNativo(i, mostrar) && !Video.software) {
+                    videoCompativel(true);
+                    log("★ O serviço de vídeo deste celular travou. A partir de agora uso o modo de vídeo compatível (por software).");
+                }
+            }
+        } catch (Throwable e) {
+            log("  (não consegui ver os erros anteriores: " + e + ")");
+        }
+    }
+
+    /** Lê o relatório (tombstone) de um erro nativo. Devolve true se foi o serviço de vídeo que morreu. */
+    private boolean detalharErroNativo(android.app.ApplicationExitInfo ei, boolean mostrar) {
+        try {
+            java.io.InputStream in = ei.getTraceInputStream();
+            if (in == null) { if (mostrar) log("  (o Android não guardou detalhes do erro nativo)"); return false; }
             java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
             byte[] b = new byte[16384];
             int r;
@@ -166,13 +189,28 @@ final class Sessao implements Painel.Ouvinte {
                 }
                 cur.setLength(0);
             }
-            StringBuilder sb = new StringBuilder();
-            int n = 0;
-            for (String p : partes) { if (n++ >= 70) break; sb.append("   # ").append(p).append('\n'); }
-            log("★ Detalhes do erro nativo (" + d.length + " bytes):\n" + sb);
+            if (mostrar) {
+                StringBuilder sb = new StringBuilder();
+                int n = 0;
+                for (String p : partes) { if (n++ >= 70) break; sb.append("   # ").append(p).append('\n'); }
+                log("★ Detalhes do erro nativo (" + d.length + " bytes):\n" + sb);
+            }
+            boolean servicoDeVideo = false, morreu = false;
+            for (String p : partes) {
+                if (p.contains("DEAD_OBJECT")) morreu = true;
+                if (p.contains("MediaCodec") || p.contains("stagefright") || p.contains("CodecLooper") || p.contains("bufferpool")) servicoDeVideo = true;
+            }
+            return morreu && servicoDeVideo;
         } catch (Throwable e) {
-            log("  (não consegui ler os detalhes do erro nativo: " + e + ")");
+            if (mostrar) log("  (não consegui ler os detalhes do erro nativo: " + e + ")");
+            return false;
         }
+    }
+
+    /** Liga/desliga o modo de vídeo compatível (vale a partir da próxima conexão). */
+    void videoCompativel(boolean sim) {
+        Video.software = sim;
+        ctx.getSharedPreferences("video", Context.MODE_PRIVATE).edit().putBoolean("software", sim).apply();
     }
 
     private static String motivoDeSaida(int r) {
