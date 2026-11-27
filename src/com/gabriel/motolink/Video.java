@@ -213,13 +213,13 @@ final class Video {
         pedirChave();
     }
 
-    void pedirChave() {
-        try {
-            Bundle b = new Bundle();
-            b.putInt(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0);
-            codec.setParameters(b);
-        } catch (Exception ignored) {}
-    }
+    /**
+     * Antes pedia um quadro-chave na hora ao codificador (PARAMETER_KEY_REQUEST_SYNC_FRAME). Num POCO X5 Pro
+     * (Snapdragon 778G, Android 14) esse pedido derrubou o serviço de vídeo do sistema (HIDL DEAD_OBJECT) e o
+     * Android fechou o app. Como o codificador já gera um quadro-chave por segundo (KEY_I_FRAME_INTERVAL = 1),
+     * basta esperar o próximo: o painel recebe a imagem no máximo 1 s depois.
+     */
+    void pedirChave() {}
 
     /** Próximo quadro para o painel (espera até 'ms'); null se não tiver. */
     byte[] proximo(long ms) {

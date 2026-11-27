@@ -18,7 +18,7 @@ import java.util.Locale;
  */
 final class Sessao implements Painel.Ouvinte {
 
-    static final String VERSAO = "1.1.2";
+    static final String VERSAO = "1.1.3";
 
     interface Tela {
         void novaLinha(String linha);
