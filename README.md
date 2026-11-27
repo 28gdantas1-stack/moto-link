@@ -16,7 +16,9 @@ O Moto Link conecta o celular direto no painel da moto (o mesmo painel que usa o
 
 Alguns painéis Zontes mostram, ao ligar, uma tela com **dois QR codes** ("Please open Carbit Ride to scan QR code…"). Esses painéis não se anunciam pelo Bluetooth como `EC…`: eles aparecem no Wi-Fi Direct (por exemplo `ZT5Gf541`) e esperam o celular pedir a conexão.
 
-Para eles existe o **Moto Link NM**, um app separado (pacote `com.gabriel.motolink.nm`) que pode ficar instalado junto com o Moto Link. Ele procura o painel pelo Wi-Fi Direct, conecta e segue o mesmo caminho do Moto Link a partir daí. Se não achar o painel sozinho, dá para colar o link do QR da esquerda (lido com a câmera) no passo 6 da preparação.
+Outros painéis mostram **"Please open Android hotspot"** com um Ssid (ex.: `ZTe544`) e uma senha: eles entram no hotspot do celular. Nesse caso, ligue o hotspot (Roteador Wi-Fi / Ponto de acesso) com exatamente esse nome e senha e toque em Conectar; o app procura o painel dentro da rede do hotspot.
+
+Para esses dois tipos existe o **Moto Link NM**, um app separado (pacote `com.gabriel.motolink.nm`) que pode ficar instalado junto com o Moto Link. Ele procura o painel pelo Wi-Fi Direct, conecta e segue o mesmo caminho do Moto Link a partir daí. Se não achar o painel sozinho, dá para colar o link do QR da esquerda (lido com a câmera) no passo 6 da preparação.
 
 Testado em uma Zontes com o painel de QR code, rodando sem travar. Se não funcionar no seu, mande o log.
 

@@ -208,6 +208,8 @@ final class Rede {
             }
         }
         abrirPortas();
+        modoHotspot = false;
+        achouIp = false;
         alvoNome = vazio(nome) ? null : nome;
         alvoMac = vazio(mac) ? null : mac.toLowerCase(java.util.Locale.ROOT);
         buscandoPainel = true;
@@ -218,6 +220,8 @@ final class Rede {
         log("Procurando o painel pelo Wi-Fi Direct (" + (alvoNome != null ? alvoNome : "nome começando com ZT")
                 + (alvoMac != null ? ", " + alvoMac : "") + ")…");
         ouv.estado("Procurando o painel… ligue a ignição", false);
+        String hs = ipDoHotspot();
+        if (hs != null) { iniciarHotspot(hs); return; }
         // desfaz qualquer grupo Wi-Fi Direct antigo antes de começar a ouvir (o aviso de conexão fica "grudado")
         final Runnable comecar = new Runnable() { @Override public void run() {
             if (!buscandoPainel) return;
@@ -253,10 +257,14 @@ final class Rede {
     /** A cada 15 s sem achar o painel: tenta de novo (e, se o QR deu o endereço, tenta conectar direto nele). */
     private final Runnable rodadaNm = new Runnable() {
         @Override public void run() {
-            if (!buscandoPainel || conectandoP2p || noGrupo) return;
+            if (!buscandoPainel || conectandoP2p || noGrupo || modoHotspot) return;
+            String hs = ipDoHotspot();
+            if (hs != null) { iniciarHotspot(hs); return; }
             rodadasNm++;
-            if (rodadasNm == 2) log("! Ainda não achei o painel. Ignição ligada? O painel está na tela dos QR codes? O Carbit está fechado?");
-            ouv.estado("Ainda procurando… o painel está na tela dos QR codes?", false);
+            if (rodadasNm == 2) log("! Ainda não achei o painel. Ignição ligada? O painel está na tela dos QR codes? O Carbit está fechado?"
+                    + " Se o painel pede o hotspot do celular, ligue o hotspot com o nome e a senha que aparecem nele.");
+            ouv.estado(rodadasNm % 2 == 0 ? "Ainda procurando… o painel está na tela dos QR codes?"
+                    : "Se o painel pede o hotspot do celular, ligue o hotspot com o nome e a senha dele", false);
             if (alvoMac != null && rodadasNm % 2 == 0) {        // como o Carbit: conecta pelo endereço do QR mesmo sem ver o painel
                 WifiP2pDevice d = new WifiP2pDevice();
                 d.deviceName = alvoNome != null ? alvoNome : "painel";
@@ -384,6 +392,93 @@ final class Rede {
         ouv.estado("Painel no Wi-Fi ✓ conversando com ele…", true);
         if (!info.isGroupOwner) ouv.painelNaRede(dono);
         else procurarIpDoPainel(dono);
+    }
+
+    // ------------------------------------------------ painel que entra no hotspot do celular ("Please open Android hotspot")
+    /*
+     * O painel mostra "Ssid: ZTe544 / Password: 88888888" e pede para o celular ligar o hotspot (Roteador Wi-Fi /
+     * Ponto de acesso) com esses dados. Ele entra na rede do celular sozinho. O Carbit, com o hotspot ligado,
+     * procura o painel na rede (mDNS "_EasyConn._tcp"); aqui procuramos direto quem atende na porta 10930.
+     */
+    private volatile boolean modoHotspot, achouIp;
+
+    /** IP do celular no hotspot, ou null se o hotspot estiver desligado. */
+    private String ipDoHotspot() {
+        boolean estacao = false;      // Wi-Fi do celular conectado numa rede (aí o wlan0 é dessa rede, não do hotspot)
+        try {
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) ctx.getSystemService(Context.CONNECTIVITY_SERVICE);
+            for (android.net.Network n : cm.getAllNetworks()) {
+                android.net.NetworkCapabilities nc = cm.getNetworkCapabilities(n);
+                if (nc != null && nc.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)) estacao = true;
+            }
+        } catch (Exception ignored) {}
+        try {
+            for (java.net.NetworkInterface ni : java.util.Collections.list(java.net.NetworkInterface.getNetworkInterfaces())) {
+                if (!ni.isUp() || ni.isLoopback()) continue;
+                String n = ni.getName().toLowerCase(java.util.Locale.ROOT);
+                boolean deHotspot = n.startsWith("ap") || n.startsWith("swlan") || n.startsWith("softap")
+                        || n.matches("wlan[1-9]\\d*") || (n.equals("wlan0") && !estacao);
+                if (!deHotspot) continue;
+                for (java.net.InterfaceAddress ia : ni.getInterfaceAddresses()) {
+                    java.net.InetAddress a = ia.getAddress();
+                    if (a instanceof java.net.Inet4Address && !a.isLoopbackAddress() && !a.isLinkLocalAddress())
+                        return a.getHostAddress() + "%" + ni.getName();
+                }
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    private void iniciarHotspot(final String ipEInterface) {
+        modoHotspot = true;
+        h.removeCallbacks(rodadaNm);
+        if (p2p != null && canal != null) try { p2p.stopPeerDiscovery(canal, null); } catch (Exception ignored) {}
+        final String meuIp = ipEInterface.substring(0, ipEInterface.indexOf('%'));
+        log("★ Hotspot do celular ligado (" + ipEInterface.replace('%', ' ') + "). Esperando o painel entrar nele…");
+        ouv.estado("Hotspot ligado ✓ esperando o painel entrar…", false);
+        new Thread(new Runnable() { @Override public void run() {
+            long inicio = System.currentTimeMillis();
+            int voltas = 0;
+            while (buscandoPainel && !achouIp && System.currentTimeMillis() - inicio < 20 * 60_000L) {
+                String ip = sondar(meuIp);
+                if (ip != null && buscandoPainel) {
+                    achouIp = true;
+                    log("★ Achei o painel no hotspot: " + ip);
+                    ouv.estado("Painel no hotspot ✓ conversando com ele…", true);
+                    ouv.painelNaRede(ip);
+                    return;
+                }
+                if (++voltas == 10) {
+                    log("! O painel ainda não apareceu no hotspot. O nome e a senha do hotspot são iguais aos do painel? "
+                            + "Se o hotspot estiver em 5 GHz, tente 2,4 GHz.");
+                    ouv.estado("O painel não entrou no hotspot. Nome e senha iguais aos do painel?", false);
+                }
+                try { Thread.sleep(3000); } catch (InterruptedException e) { return; }
+            }
+        }}, "procura-hotspot").start();
+    }
+
+    /** Procura, na rede /24 do celular, quem atende na porta 10930 (o painel). */
+    private String sondar(String meuIp) {
+        String base = meuIp.substring(0, meuIp.lastIndexOf('.') + 1);
+        final String[] achado = new String[1];
+        java.util.concurrent.ExecutorService ex = java.util.concurrent.Executors.newFixedThreadPool(32);
+        for (int i = 1; i < 255; i++) {
+            final String ip = base + i;
+            if (ip.equals(meuIp)) continue;
+            ex.execute(new Runnable() { @Override public void run() {
+                if (achado[0] != null) return;
+                Socket s = new Socket();
+                try {
+                    s.connect(new InetSocketAddress(ip, 10930), 700);
+                    synchronized (achado) { if (achado[0] == null) achado[0] = ip; }
+                } catch (Exception ignored) {
+                } finally { try { s.close(); } catch (Exception ignored) {} }
+            }});
+        }
+        ex.shutdown();
+        try { ex.awaitTermination(20, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException ignored) {}
+        return achado[0];
     }
 
     /** Se o celular virou o dono da rede, o painel pegou um IP qualquer: procura quem atende na porta 10930. */

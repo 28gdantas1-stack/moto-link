@@ -123,7 +123,7 @@ public class MainActivity extends Activity implements Sessao.Tela {
         TextView titulo = Estilo.texto(this, Variante.NOME, 32, Estilo.TEXTO, true);
         titulo.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
         nomes.addView(titulo);
-        TextView sub = Estilo.texto(this, Variante.NM ? "Android Auto nos painéis Zontes com QR code" : "Android Auto no painel da sua Zontes", 14, Estilo.TEXTO2, false);
+        TextView sub = Estilo.texto(this, Variante.NM ? "Android Auto nos painéis Zontes com QR code ou hotspot" : "Android Auto no painel da sua Zontes", 14, Estilo.TEXTO2, false);
         sub.setPadding(0, dp(2), 0, 0);
         nomes.addView(sub);
         cab.addView(nomes, new LinearLayout.LayoutParams(0, -2, 1));
@@ -369,6 +369,16 @@ public class MainActivity extends Activity implements Sessao.Tela {
                 + "2.  Abra o " + Variante.NOME + " e toque em Conectar à moto.\n"
                 + "3.  Em uns 15 segundos o Android Auto aparece no painel.\n"
                 + "4.  Pode guardar o celular. A bolinha flutuante mantém tudo funcionando.");
+        if (Variante.NM) {
+            bloco(c, "Painel que pede o hotspot do celular",
+                    "Se o painel mostra \"Please open Android hotspot\" com Ssid e Password: no celular, abra o Roteador Wi-Fi "
+                    + "(Ponto de acesso), coloque exatamente o mesmo nome e a mesma senha que aparecem no painel e ligue. "
+                    + "Depois toque em Conectar à moto. O nome e a senha ficam salvos: nas próximas vezes é só ligar o hotspot "
+                    + "pelo atalho da barra de notificações. Se o painel não entrar, mude a faixa do hotspot para 2,4 GHz.");
+            c.addView(Estilo.link(this, "Abrir configurações do hotspot", new View.OnClickListener() {
+                @Override public void onClick(View v) { abrirHotspot(); }
+            }));
+        }
         bloco(c, "Depois de reiniciar o celular",
                 "O Android Auto desliga o servidor dele quando o celular reinicia ou o app atualiza. "
                 + "O " + Variante.NOME + " percebe e abre a tela certa: toque em ⋮ (no alto, à direita) → "
@@ -380,7 +390,8 @@ public class MainActivity extends Activity implements Sessao.Tela {
         bloco(c, "Se algo não funcionar",
                 (Variante.NM
                     ? "•  Não acha o painel: confira se a ignição e o Wi-Fi estão ligados, se o painel está na tela dos QR codes e se o Carbit está fechado. "
-                      + "Se continuar, leia o QR da esquerda com a câmera, copie o link e toque em Colar no passo 6.\n"
+                      + "Se continuar, leia o QR da esquerda com a câmera, copie o link e toque em Colar no passo 6. "
+                      + "Se o painel pede o hotspot do celular, veja o bloco sobre o hotspot acima.\n"
                     : "•  Não acha o painel: confira se a ignição e o Bluetooth estão ligados e se o Carbit está fechado.\n")
                 + "•  \"Ligue o Wi-Fi\": o Wi-Fi do celular precisa estar ligado, mas não precisa estar em rede nenhuma.\n"
                 + "•  A imagem trava com o celular no bolso: faça os passos 2 e 3 da preparação.\n"
@@ -526,6 +537,24 @@ public class MainActivity extends Activity implements Sessao.Tela {
     }
 
     private void toastLongo(String t) { Toast.makeText(this, t, Toast.LENGTH_LONG).show(); }
+
+    /** Abre a tela do hotspot (Roteador Wi-Fi / Ponto de acesso); cada fabricante usa um caminho. */
+    private void abrirHotspot() {
+        Intent[] tentativas = {
+                new Intent("android.settings.TETHER_SETTINGS"),
+                new Intent().setClassName("com.android.settings", "com.android.settings.TetherSettings"),
+                new Intent().setClassName("com.android.settings", "com.android.settings.Settings$TetherSettingsActivity"),
+                new Intent(Settings.ACTION_WIRELESS_SETTINGS),
+        };
+        for (Intent i : tentativas) {
+            try {
+                startActivity(i);
+                toastLongo("Coloque o mesmo nome e senha que aparecem no painel e ligue o hotspot.");
+                return;
+            } catch (Exception ignored) {}
+        }
+        toastLongo("Abra as Configurações → Conexões → Roteador Wi-Fi (ou Ponto de acesso).");
+    }
 
     /** Moto Link NM: lê da área de transferência o link copiado do QR code do painel. */
     private void colarQr() {
