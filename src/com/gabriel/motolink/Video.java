@@ -148,11 +148,15 @@ final class Video {
             if (ultimoDesenho > 0 && agora - ultimoDesenho > 300)
                 aviso("  ⚠ celular: o desenho da imagem atrasou " + (agora - ultimoDesenho) + " ms");
             ultimoDesenho = agora;
-            try {
-                Canvas c = entrada.lockHardwareCanvas();
-                try { desenhar(c); } finally { entrada.unlockCanvasAndPost(c); }
-            } catch (Exception e) {
-                aviso("! desenho: " + e.getMessage());
+            if (software) {
+                desenharGl();                                // modo compatível: OpenGL, sem o desenhista de telas do Android
+            } else {
+                try {
+                    Canvas c = entrada.lockHardwareCanvas();
+                    try { desenhar(c); } finally { entrada.unlockCanvasAndPost(c); }
+                } catch (Exception e) {
+                    aviso("! desenho: " + e.getMessage());
+                }
             }
             proximoDesenho += 40;
             if (proximoDesenho < agora) proximoDesenho = agora + 40;
@@ -161,6 +165,58 @@ final class Video {
     };
 
     private void desenhar(Canvas c) { desenharTela(c, w, h, p, relogio, enviados); }
+
+    // ---------------------------------------------------------------- tela de espera por OpenGL (modo compatível)
+    /*
+     * O mesmo caminho que a ponte do Android Auto usa: um contexto OpenGL desenhando direto na entrada do
+     * codificador (EGL_RECORDABLE_ANDROID). Aqui só limpa a tela de preto; sem texto.
+     */
+    private android.opengl.EGLDisplay eglD;
+    private android.opengl.EGLContext eglC;
+    private android.opengl.EGLSurface eglS;
+    private boolean eglFalhou;
+
+    private void desenharGl() {
+        if (eglFalhou) return;
+        try {
+            if (eglS == null) {
+                eglD = android.opengl.EGL14.eglGetDisplay(android.opengl.EGL14.EGL_DEFAULT_DISPLAY);
+                int[] ver = new int[2];
+                android.opengl.EGL14.eglInitialize(eglD, ver, 0, ver, 1);
+                int[] atr = {android.opengl.EGL14.EGL_RED_SIZE, 8, android.opengl.EGL14.EGL_GREEN_SIZE, 8,
+                        android.opengl.EGL14.EGL_BLUE_SIZE, 8, android.opengl.EGL14.EGL_ALPHA_SIZE, 8,
+                        android.opengl.EGL14.EGL_RENDERABLE_TYPE, android.opengl.EGL14.EGL_OPENGL_ES2_BIT,
+                        0x3142 /* EGL_RECORDABLE_ANDROID */, 1, android.opengl.EGL14.EGL_NONE};
+                android.opengl.EGLConfig[] cf = new android.opengl.EGLConfig[1];
+                int[] n = new int[1];
+                if (!android.opengl.EGL14.eglChooseConfig(eglD, atr, 0, cf, 0, 1, n, 0) || n[0] == 0) throw new RuntimeException("sem config EGL");
+                eglC = android.opengl.EGL14.eglCreateContext(eglD, cf[0], android.opengl.EGL14.EGL_NO_CONTEXT,
+                        new int[]{android.opengl.EGL14.EGL_CONTEXT_CLIENT_VERSION, 2, android.opengl.EGL14.EGL_NONE}, 0);
+                eglS = android.opengl.EGL14.eglCreateWindowSurface(eglD, cf[0], entrada, new int[]{android.opengl.EGL14.EGL_NONE}, 0);
+                if (eglS == null || eglS == android.opengl.EGL14.EGL_NO_SURFACE) throw new RuntimeException("sem superfície EGL");
+                android.opengl.EGL14.eglMakeCurrent(eglD, eglS, eglS, eglC);
+                log.log("  Vídeo: tela de espera por OpenGL (modo compatível).");
+            }
+            android.opengl.GLES20.glClearColor(0f, 0f, 0f, 1f);
+            android.opengl.GLES20.glClear(android.opengl.GLES20.GL_COLOR_BUFFER_BIT);
+            android.opengl.EGLExt.eglPresentationTimeANDROID(eglD, eglS, System.nanoTime());
+            android.opengl.EGL14.eglSwapBuffers(eglD, eglS);
+        } catch (Exception e) {
+            eglFalhou = true;
+            aviso("! desenho OpenGL: " + e.getMessage());
+        }
+    }
+
+    private void soltarGl() {
+        try {
+            if (eglD != null) {
+                android.opengl.EGL14.eglMakeCurrent(eglD, android.opengl.EGL14.EGL_NO_SURFACE, android.opengl.EGL14.EGL_NO_SURFACE, android.opengl.EGL14.EGL_NO_CONTEXT);
+                if (eglS != null) android.opengl.EGL14.eglDestroySurface(eglD, eglS);
+                if (eglC != null) android.opengl.EGL14.eglDestroyContext(eglD, eglC);
+            }
+        } catch (Exception ignored) {}
+        eglS = null; eglC = null;
+    }
 
     /** Aviso discreto no painel enquanto o Android Auto não chega (vazio = tela preta). */
     static volatile String mensagemEspera = "";
@@ -260,6 +316,11 @@ final class Video {
 
     synchronized void parar() {
         rodando = false;
+        if (hd != null && eglS != null) {
+            final java.util.concurrent.CountDownLatch fim = new java.util.concurrent.CountDownLatch(1);
+            hd.post(new Runnable() { @Override public void run() { soltarGl(); fim.countDown(); } });
+            try { fim.await(500, java.util.concurrent.TimeUnit.MILLISECONDS); } catch (InterruptedException ignored) {}
+        }
         try { if (desenho != null) desenho.quitSafely(); } catch (Exception ignored) {}
         try { if (codec != null) { codec.stop(); codec.release(); } } catch (Exception ignored) {}
         try { if (entrada != null) entrada.release(); } catch (Exception ignored) {}

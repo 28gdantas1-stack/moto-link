@@ -18,7 +18,7 @@ import java.util.Locale;
  */
 final class Sessao implements Painel.Ouvinte {
 
-    static final String VERSAO = "1.1.4";
+    static final String VERSAO = "1.1.5";
 
     interface Tela {
         void novaLinha(String linha);
@@ -190,10 +190,15 @@ final class Sessao implements Painel.Ouvinte {
                 cur.setLength(0);
             }
             if (mostrar) {
-                StringBuilder sb = new StringBuilder();
-                int n = 0;
-                for (String p : partes) { if (n++ >= 70) break; sb.append("   # ").append(p).append('\n'); }
-                log("★ Detalhes do erro nativo (" + d.length + " bytes):\n" + sb);
+                String resumo = Tombstone.resumo(d);
+                if (resumo != null && !resumo.trim().isEmpty()) {
+                    log("★ Detalhes do erro nativo:\n" + resumo);
+                } else {
+                    StringBuilder sb = new StringBuilder();
+                    int n = 0;
+                    for (String p : partes) { if (n++ >= 70) break; sb.append("   # ").append(p).append('\n'); }
+                    log("★ Detalhes do erro nativo (" + d.length + " bytes):\n" + sb);
+                }
             }
             boolean servicoDeVideo = false, morreu = false;
             for (String p : partes) {
