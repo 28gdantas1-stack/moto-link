@@ -18,7 +18,7 @@ import java.util.Locale;
  */
 final class Sessao implements Painel.Ouvinte {
 
-    static final String VERSAO = "1.1";
+    static final String VERSAO = "1.1.1";
 
     interface Tela {
         void novaLinha(String linha);
@@ -54,6 +54,7 @@ final class Sessao implements Painel.Ouvinte {
 
     private Sessao(Context app) {
         ctx = app;
+        prepararCaixaPreta();
         painel = new Painel(app, this);
         rede = new Rede(app, this);
         bolha = new Bolha(app, this);
@@ -65,6 +66,96 @@ final class Sessao implements Painel.Ouvinte {
             if (!aa.ligado()) aa.conectar();          // painel pronto: tenta pôr o Android Auto nele
         }};
         log(Variante.NOME + " v" + VERSAO + " · Android " + Build.VERSION.RELEASE + " · " + Build.MODEL);
+        contarFechamentoAnterior();
+    }
+
+    // ---------------------------------------------------------------- caixa-preta: por que o app fechou?
+    /*
+     * O log fica só na memória; se o app fecha sozinho, ele se perde. Então cada linha também vai para um arquivo,
+     * e um erro não tratado é gravado antes do app morrer. Na próxima abertura, o log mostra o motivo do último
+     * fechamento (o Android 11+ conta até travamentos nativos) e as últimas linhas da vez anterior.
+     */
+    private java.io.Writer arquivoLog;
+    private String logAnterior;
+
+    private void prepararCaixaPreta() {
+        try {
+            java.io.File atual = new java.io.File(ctx.getFilesDir(), "log-atual.txt");
+            java.io.File anterior = new java.io.File(ctx.getFilesDir(), "log-anterior.txt");
+            if (atual.exists()) {
+                anterior.delete();
+                atual.renameTo(anterior);
+            }
+            if (anterior.exists()) {
+                byte[] b = new byte[(int) Math.min(anterior.length(), 64 * 1024)];
+                java.io.RandomAccessFile f = new java.io.RandomAccessFile(anterior, "r");
+                f.seek(Math.max(0, anterior.length() - b.length));
+                f.readFully(b);
+                f.close();
+                logAnterior = new String(b, java.nio.charset.StandardCharsets.UTF_8);
+            }
+            arquivoLog = new java.io.OutputStreamWriter(new java.io.FileOutputStream(atual), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception ignored) {}
+        final Thread.UncaughtExceptionHandler antes = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+            @Override public void uncaughtException(Thread t, Throwable e) {
+                try {
+                    java.io.StringWriter sw = new java.io.StringWriter();
+                    e.printStackTrace(new java.io.PrintWriter(sw));
+                    log("✖ ERRO que fechou o app (thread " + t.getName() + "):\n" + sw);
+                } catch (Throwable ignored) {}
+                if (antes != null) antes.uncaughtException(t, e);
+            }
+        });
+    }
+
+    private void contarFechamentoAnterior() {
+        String motivo = null;
+        if (Build.VERSION.SDK_INT >= 30) {
+            try {
+                android.app.ActivityManager am = (android.app.ActivityManager) ctx.getSystemService(Context.ACTIVITY_SERVICE);
+                List<android.app.ApplicationExitInfo> l = am.getHistoricalProcessExitReasons(ctx.getPackageName(), 0, 1);
+                if (!l.isEmpty()) {
+                    android.app.ApplicationExitInfo i = l.get(0);
+                    motivo = motivoDeSaida(i.getReason()) + (i.getDescription() != null ? " (" + i.getDescription() + ")" : "")
+                            + " em " + new SimpleDateFormat("dd/MM HH:mm:ss", Locale.ROOT).format(new Date(i.getTimestamp()));
+                    int r = i.getReason();
+                    boolean grave = r != 1 && r != 10 && r != 11 && r != 16;   // tudo, menos saída normal, usuário e atualização
+                    if (!grave) { logAnterior = null; }
+                }
+            } catch (Exception ignored) {}
+        }
+        if (motivo != null) log("Último fechamento do app: " + motivo);
+        boolean teveErro = logAnterior != null && logAnterior.contains("✖ ERRO que fechou o app");
+        if (logAnterior != null && (teveErro || motivo != null)) {
+            String[] linhas = logAnterior.split("\n");
+            int de = Math.max(0, linhas.length - (teveErro ? 120 : 40));
+            StringBuilder sb = new StringBuilder();
+            for (int i = de; i < linhas.length; i++) sb.append("   | ").append(linhas[i]).append('\n');
+            log("★ Últimas linhas da vez anterior (antes de fechar):\n" + sb);
+        }
+        logAnterior = null;
+    }
+
+    private static String motivoDeSaida(int r) {
+        switch (r) {
+            case 1: return "o próprio app saiu";
+            case 2: return "o sistema encerrou (sinal)";
+            case 3: return "o sistema fechou por falta de memória";
+            case 4: return "ERRO no app";
+            case 5: return "ERRO nativo (do sistema ou do vídeo)";
+            case 6: return "o app travou (ANR)";
+            case 7: return "falha ao iniciar";
+            case 8: return "permissão mudou";
+            case 9: return "uso excessivo de recursos";
+            case 10: return "o usuário pediu para fechar";
+            case 11: return "o usuário parou o app";
+            case 12: return "dependência fechou";
+            case 14: return "congelado pelo sistema";
+            case 15: return "pacote mudou";
+            case 16: return "o app foi atualizado";
+            default: return "outro motivo (" + r + ")";
+        }
     }
 
     // ---------------------------------------------------------------- telas visíveis e bolinha
@@ -243,6 +334,9 @@ final class Sessao implements Painel.Ouvinte {
             if (logTudo.length() > 4_000_000) logTudo.delete(0, 1_000_000);
             logTela.add(l);
             if (logTela.size() > 500) logTela.subList(0, logTela.size() - 400).clear();
+            if (arquivoLog != null) {
+                try { arquivoLog.write(l); arquivoLog.write('\n'); arquivoLog.flush(); } catch (Exception ignored) {}
+            }
         }
         h.post(new Runnable() { @Override public void run() {
             Tela t = tela;
