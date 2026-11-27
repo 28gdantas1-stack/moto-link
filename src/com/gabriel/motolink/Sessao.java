@@ -18,7 +18,7 @@ import java.util.Locale;
  */
 final class Sessao implements Painel.Ouvinte {
 
-    static final String VERSAO = "1.1.5";
+    static final String VERSAO = Variante.VERSAO;
 
     interface Tela {
         void novaLinha(String linha);
@@ -54,7 +54,8 @@ final class Sessao implements Painel.Ouvinte {
 
     private Sessao(Context app) {
         ctx = app;
-        Video.software = app.getSharedPreferences("video", Context.MODE_PRIVATE).getBoolean("software", false);
+        // o Hotspot já começa no modo compatível (foi o que funcionou); os outros só se o vídeo travar
+        Video.software = app.getSharedPreferences("video", Context.MODE_PRIVATE).getBoolean("software", Variante.HOTSPOT);
         prepararCaixaPreta();
         painel = new Painel(app, this);
         rede = new Rede(app, this);

@@ -123,7 +123,8 @@ public class MainActivity extends Activity implements Sessao.Tela {
         TextView titulo = Estilo.texto(this, Variante.NOME, 32, Estilo.TEXTO, true);
         titulo.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
         nomes.addView(titulo);
-        TextView sub = Estilo.texto(this, Variante.NM ? "Android Auto nos painéis Zontes com QR code ou hotspot" : "Android Auto no painel da sua Zontes", 14, Estilo.TEXTO2, false);
+        TextView sub = Estilo.texto(this, Variante.HOTSPOT ? "Android Auto nos painéis Zontes que pedem o hotspot do celular"
+                : Variante.NM ? "Android Auto nos painéis Zontes com QR code ou hotspot" : "Android Auto no painel da sua Zontes", 14, Estilo.TEXTO2, false);
         sub.setPadding(0, dp(2), 0, 0);
         nomes.addView(sub);
         cab.addView(nomes, new LinearLayout.LayoutParams(0, -2, 1));
@@ -340,7 +341,14 @@ public class MainActivity extends Activity implements Sessao.Tela {
         jaFiz.setPadding(dp(44), 0, 0, dp(4));
         jaFiz.setTag("jaFiz");
         cartaoGuia.addView(jaFiz);
-        if (Variante.NM) {
+        if (Variante.HOTSPOT) {
+            pQr = new Estilo.Passo(this, 6, "Hotspot do celular",
+                    "No hotspot (Roteador Wi-Fi / Ponto de acesso), use o mesmo nome (Ssid) e senha (Password) que aparecem no painel. "
+                    + "Ligue o hotspot antes de conectar.", "Abrir", new View.OnClickListener() {
+                @Override public void onClick(View v) { abrirHotspot(); }
+            });
+            cartaoGuia.addView(pQr);
+        } else if (Variante.NM) {
             pQr = new Estilo.Passo(this, 6, "QR code do painel (opcional)",
                     "", "Colar", new View.OnClickListener() {
                 @Override public void onClick(View v) { colarQr(); }
@@ -374,7 +382,8 @@ public class MainActivity extends Activity implements Sessao.Tela {
         c.setOrientation(LinearLayout.VERTICAL);
         Estilo.cartao(this, c);
         bloco(c, "Toda vez que for andar",
-                (Variante.NM ? "1.  Ligue a ignição da moto. O painel mostra a tela com os QR codes.\n"
+                (Variante.HOTSPOT ? "1.  Ligue a ignição da moto e o hotspot do celular.\n"
+                 : Variante.NM ? "1.  Ligue a ignição da moto. O painel mostra a tela com os QR codes.\n"
                              : "1.  Ligue a ignição da moto.\n")
                 + "2.  Abra o " + Variante.NOME + " e toque em Conectar à moto.\n"
                 + "3.  Em uns 15 segundos o Android Auto aparece no painel.\n"
@@ -489,7 +498,7 @@ public class MainActivity extends Activity implements Sessao.Tela {
         View jaFiz = cartaoGuia.findViewWithTag("jaFiz");
         if (jaFiz != null) jaFiz.setVisibility(dev ? View.GONE : View.VISIBLE);
         avisoCarbit.setVisibility(carbitInstalado ? View.VISIBLE : View.GONE);
-        if (pQr != null) {
+        if (pQr != null && !Variante.HOTSPOT) {
             String nomeQr = sessao.painelGuardado();
             boolean qr = sessao.qrGuardado();
             pQr.feito(qr);

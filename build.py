@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Monta o APK do Moto Link: javac -> d8 (dex) -> aapt2 (recursos) -> zip alinhado -> apksigner.
-Uso: python3 build.py [versionCode] [versionName] [nm]
-  nm: monta o Moto Link NM (painéis com QR code / Wi-Fi Direct), outro pacote: com.gabriel.motolink.nm"""
+Uso: python3 build.py [versionCode] [versionName] [nm|hotspot]
+  nm:      Moto Link NM (painéis com QR code / Wi-Fi Direct), pacote com.gabriel.motolink.nm
+  hotspot: Moto Link Hotspot (painéis que pedem o hotspot do celular), pacote com.gabriel.motolink.hotspot"""
 import glob, os, shutil, struct, subprocess, sys, zipfile
 
 A = os.path.dirname(os.path.abspath(__file__))
@@ -16,9 +17,12 @@ D8 = os.path.join(T, 'd8.jar')
 SIGNER = os.path.join(T, 'apksigner.jar')
 OUT = os.path.join(A, 'out')
 VC, VN = (sys.argv[1], sys.argv[2]) if len(sys.argv) > 2 else ('1', '0.1')
-NM = len(sys.argv) > 3 and sys.argv[3].lower() == 'nm'
-PACOTE = 'com.gabriel.motolink.nm' if NM else 'com.gabriel.motolink'
-NOME_APK = 'MotoLink-NM.apk' if NM else 'MotoLink.apk'
+VAR = sys.argv[3].lower() if len(sys.argv) > 3 else ''
+TIPO = {'': 0, 'nm': 1, 'hotspot': 2}[VAR]
+NM = TIPO != 0          # NM e Hotspot: pacote e nome próprios
+PACOTE = ['com.gabriel.motolink', 'com.gabriel.motolink.nm', 'com.gabriel.motolink.hotspot'][TIPO]
+NOME_APP = ['Moto Link', 'Moto Link NM', 'Moto Link Hotspot'][TIPO]
+NOME_APK = ['MotoLink.apk', 'MotoLink-NM.apk', 'MotoLink-Hotspot.apk'][TIPO]
 
 
 def sh(*cmd):
@@ -35,14 +39,16 @@ os.makedirs(os.path.join(OUT, 'classes'))
 
 # 1) Java -> .class
 fontes = glob.glob(os.path.join(A, 'src', '**', '*.java'), recursive=True)
-if NM:   # mesma base de código, com a chave NM ligada
-    orig = [f for f in fontes if f.endswith(os.sep + 'Variante.java')][0]
-    gen = os.path.join(OUT, 'gen', 'Variante.java')
-    os.makedirs(os.path.dirname(gen))
-    texto = open(orig, encoding='utf-8').read()
-    assert 'static final boolean NM = false;' in texto
-    open(gen, 'w', encoding='utf-8').write(texto.replace('static final boolean NM = false;', 'static final boolean NM = true;'))
-    fontes = [f for f in fontes if f != orig] + [gen]
+# mesma base de código para os três apps: gera Variante.java com o tipo e a versão
+orig = [f for f in fontes if f.endswith(os.sep + 'Variante.java')][0]
+gen = os.path.join(OUT, 'gen', 'Variante.java')
+os.makedirs(os.path.dirname(gen))
+texto = open(orig, encoding='utf-8').read()
+assert 'static final int TIPO = 0;' in texto and 'static final String VERSAO = "dev";' in texto
+texto = texto.replace('static final int TIPO = 0;', 'static final int TIPO = %d;' % TIPO)
+texto = texto.replace('static final String VERSAO = "dev";', 'static final String VERSAO = "%s";' % VN)
+open(gen, 'w', encoding='utf-8').write(texto)
+fontes = [f for f in fontes if f != orig] + [gen]
 print(sh('javac', '-nowarn', '-Xlint:none', '-parameters', '--release', '8', '-classpath', ANDROID,
          '-d', os.path.join(OUT, 'classes'), *fontes) or 'javac ok')
 
@@ -60,7 +66,7 @@ if NM:   # nome do app na tela inicial
     sx = os.path.join(RES, 'values', 'strings.xml')
     texto = open(sx, encoding='utf-8').read()
     assert '>Moto Link<' in texto
-    open(sx, 'w', encoding='utf-8').write(texto.replace('>Moto Link<', '>Moto Link NM<'))
+    open(sx, 'w', encoding='utf-8').write(texto.replace('>Moto Link<', '>' + NOME_APP + '<'))
 sh(AAPT2, 'compile', '--dir', RES, '-o', os.path.join(OUT, 'res.zip'))
 sh(AAPT2, 'link', '-I', ANDROID, '--manifest', os.path.join(A, 'AndroidManifest.xml'),
    '--min-sdk-version', '26', '--target-sdk-version', '36', '--version-code', VC, '--version-name', VN,

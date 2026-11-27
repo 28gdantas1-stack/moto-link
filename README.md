@@ -12,15 +12,27 @@ O Moto Link conecta o celular direto no painel da moto (o mesmo painel que usa o
 - Testado em uma **Zontes GK 350 (2024/25)** com um celular Samsung Galaxy (Android 17).
 - Outras Zontes com o mesmo painel Carbit devem funcionar, mas não foram testadas. Se não funcionar na sua, mande o log (veja [Problemas](#se-algo-não-funcionar)).
 
-## Moto Link NM (painéis com QR code)
+## Qual app usar
 
-Alguns painéis Zontes mostram, ao ligar, uma tela com **dois QR codes** ("Please open Carbit Ride to scan QR code…"). Esses painéis não se anunciam pelo Bluetooth como `EC…`: eles aparecem no Wi-Fi Direct (por exemplo `ZT5Gf541`) e esperam o celular pedir a conexão.
+O painel Carbit da Zontes aparece em pelo menos três versões. Ligue a ignição e veja a tela do painel:
 
-Outros painéis mostram **"Please open Android hotspot"** com um Ssid (ex.: `ZTe544`) e uma senha: eles entram no hotspot do celular. Nesse caso, ligue o hotspot (Roteador Wi-Fi / Ponto de acesso) com exatamente esse nome e senha e toque em Conectar; o app procura o painel dentro da rede do hotspot.
+| O painel mostra… | App | Pacote |
+|---|---|---|
+| Nada de especial (conecta pelo Bluetooth, nome `EC…`) | **Moto Link** | `com.gabriel.motolink` |
+| QR codes e "Please open Carbit Ride to scan QR code" | **Moto Link NM** | `com.gabriel.motolink.nm` |
+| "Please open Android hotspot" com Ssid e Password | **Moto Link Hotspot** | `com.gabriel.motolink.hotspot` |
 
-Para esses dois tipos existe o **Moto Link NM**, um app separado (pacote `com.gabriel.motolink.nm`) que pode ficar instalado junto com o Moto Link. Ele procura o painel pelo Wi-Fi Direct, conecta e segue o mesmo caminho do Moto Link a partir daí. Se não achar o painel sozinho, dá para colar o link do QR da esquerda (lido com a câmera) no passo 6 da preparação.
+Os três podem ficar instalados juntos.
 
-Testado em uma Zontes com o painel de QR code, rodando sem travar. Se não funcionar no seu, mande o log.
+### Moto Link NM (QR code / Wi-Fi Direct)
+
+O painel aparece no Wi-Fi Direct (por exemplo `ZT5Gf541`) e espera o celular pedir a conexão, como o Carbit faz depois de ler o QR. O app procura aparelhos com nome começando em `ZT` e conecta. Se não achar sozinho, dá para colar o link do QR da esquerda (lido com a câmera) no passo 6 da preparação. Testado num painel com QR code.
+
+### Moto Link Hotspot
+
+O painel pede para ligar o hotspot do celular com um nome e uma senha (por exemplo `ZTe544` / `88888888`). Configure o hotspot (Roteador Wi-Fi / Ponto de acesso) com exatamente esses dados, ligue e toque em Conectar: o painel entra no hotspot e o app o encontra na rede.
+
+Ele já começa no **modo de vídeo compatível** (codificador por software e imagem desenhada por OpenGL). No celular em que foi testado (POCO X5 Pro), o serviço de vídeo do aparelho travava no modo normal e fechava o app. Dá para trocar o modo no Diagnóstico.
 
 ## Download
 
@@ -89,8 +101,8 @@ O projeto não usa Gradle. Precisa de Java 17+, Python 3, OpenSSL e uma pasta `f
 python3 build.py 100 1.0      # versionCode, versionName
 # saída: out/MotoLink.apk
 
-python3 build.py 100 1.0 nm   # Moto Link NM
-# saída: out/MotoLink-NM.apk
+python3 build.py 100 1.0 nm        # Moto Link NM      -> out/MotoLink-NM.apk
+python3 build.py 100 1.0 hotspot   # Moto Link Hotspot -> out/MotoLink-Hotspot.apk
 ```
 
 Na primeira compilação o script cria uma chave de assinatura em `assinatura/`. Guarde essa pasta e **não publique**: as próximas versões precisam ser assinadas com a mesma chave para instalar por cima.
