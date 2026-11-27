@@ -253,6 +253,7 @@ final class AndroidAuto {
             ligado = true;
 
             // 1) versão
+            log("  Android Auto: servidor atendeu; pedindo a versão…");
             enviarCru(CH_CONTROLE, 0x03, 1, new byte[]{0, 1, 0, 2});
             Quadro v = lerQuadro();
             if (v.tipo() != 2) throw new IOException("resposta de versão inesperada (tipo " + v.tipo() + ")");

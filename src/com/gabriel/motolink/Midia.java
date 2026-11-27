@@ -196,7 +196,9 @@ final class Midia {
                 ultimoPedidoGeral = chegou;
                 Video v = video;
                 if (v == null) { prepararVideo(); v = video; }
+                if (primeiro && n == 1) log("  [vídeo] esperando o primeiro quadro do codificador…");
                 byte[] q = v == null ? null : v.proximo(primeiro ? 600 : 120);
+                if (primeiro && n <= 3 && q == null) log("  [vídeo] ainda sem quadro (resposta vazia)");
                 if (q == null) {
                     out.write(Protocol0.ZERO);
                     vazios++;
